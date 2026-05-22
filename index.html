@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TIC · TAC · TOE</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --x-color: #00f5ff;
+      --o-color: #ff3cac;
+      --bg: #050510;
+      --panel: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --glow-x: 0 0 20px #00f5ff88, 0 0 60px #00f5ff33;
+      --glow-o: 0 0 20px #ff3cac88, 0 0 60px #ff3cac33;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      min-height: 100vh;
+      font-family: 'Rajdhani', sans-serif;
+      color: #fff;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Animated starfield background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.6) 0%, transparent 100%),
+        radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 50% 70%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(2px 2px at 40% 50%, rgba(0,245,255,0.3) 0%, transparent 100%),
+        radial-gradient(2px 2px at 70% 20%, rgba(255,60,172,0.3) 0%, transparent 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Ambient glow blobs */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 600px 400px at 20% 20%, rgba(0,245,255,0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 600px 400px at 80% 80%, rgba(255,60,172,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* NAV */
+    nav {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      padding: 18px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      background: rgba(5,5,16,0.7);
+    }
+
+    .nav-logo {
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: 1rem;
+      letter-spacing: 0.3em;
+      background: linear-gradient(90deg, var(--x-color), var(--o-color));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav-score {
+      display: flex;
+      gap: 24px;
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .nav-score span { color: #fff; font-weight: 600; }
+
+    /* MAIN LAYOUT */
+    main {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 24px 32px;
+      gap: 40px;
+      width: 100%;
+      max-width: 960px;
+    }
+
+    /* TITLE */
+    .title-block {
+      text-align: center;
+      animation: fadeSlideDown 0.8s ease both;
+    }
+
+    .title-block h1 {
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: clamp(2rem, 6vw, 4rem);
+      letter-spacing: 0.4em;
+      background: linear-gradient(135deg, #fff 0%, var(--x-color) 40%, var(--o-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
+    }
+
+    .title-dots {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .title-dots span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--x-color);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .title-dots span:nth-child(2) { background: #fff; animation-delay: 0.3s; }
+    .title-dots span:nth-child(3) { background: var(--o-color); animation-delay: 0.6s; }
+
+    /* GAME AREA */
+    .game-area {
+      display: flex;
+      gap: 48px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeIn 1s ease both 0.3s;
+    }
+
+    /* BOARD */
+    .board-wrapper {
+      position: relative;
+    }
+
+    /* Decorative corner pieces */
+    .board-wrapper::before, .board-wrapper::after {
+      content: '';
+      position: absolute;
+      width: 20px; height: 20px;
+      border-color: var(--x-color);
+      border-style: solid;
+      opacity: 0.6;
+      z-index: 2;
+    }
+    .board-wrapper::before { top: -8px; left: -8px; border-width: 2px 0 0 2px; }
+    .board-wrapper::after  { bottom: -8px; right: -8px; border-width: 0 2px 2px 0; }
+
+    .board-corner-tr, .board-corner-bl {
+      position: absolute;
+      width: 20px; height: 20px;
+      border-style: solid;
+      opacity: 0.6;
+      z-index: 2;
+    }
+    .board-corner-tr { top: -8px; right: -8px; border-color: var(--o-color); border-width: 2px 2px 0 0; }
+    .board-corner-bl { bottom: -8px; left: -8px; border-color: var(--o-color); border-width: 0 0 2px 2px; }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      width: clamp(260px, 38vw, 420px);
+      height: clamp(260px, 38vw, 420px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 0 80px rgba(0,245,255,0.05), inset 0 0 80px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    .cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2rem, 8vw, 4.5rem);
+      font-weight: 900;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s ease;
+      border: 1px solid var(--border);
+      user-select: none;
+    }
+
+    .cell:hover:not(.taken) {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .cell::after {
+      content: attr(data-hover);
+      position: absolute;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: clamp(1.5rem, 6vw, 3.5rem);
+      color: rgba(255,255,255,0.15);
+      pointer-events: none;
+    }
+
+    .cell:not(.taken):hover::after { opacity: 1; }
+
+    .cell .mark {
+      display: block;
+      transform: scale(0);
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .cell .mark.show { transform: scale(1); }
+
+    .cell .mark.x {
+      color: var(--x-color);
+      text-shadow: var(--glow-x);
+      filter: drop-shadow(0 0 12px var(--x-color));
+    }
+    .cell .mark.o {
+      color: var(--o-color);
+      text-shadow: var(--glow-o);
+      filter: drop-shadow(0 0 12px var(--o-color));
+    }
+
+    /* Win highlight */
+    .cell.winner {
+      animation: winPulse 0.6s ease forwards;
+      background: rgba(255,255,255,0.06) !important;
+    }
+
+    /* Win line overlay */
+    .win-line {
+      position: absolute;
+      background: linear-gradient(90deg, transparent, #fff, transparent);
+      opacity: 0;
+      border-radius: 4px;
+      pointer-events: none;
+      transition: opacity 0.4s ease 0.2s;
+      z-index: 5;
+    }
+    .win-line.show { opacity: 0.7; }
+
+    /* Horizontal lines */
+    .win-line.row-0 { width: 90%; height: 3px; top: 16.66%; left: 5%; transform: translateY(-50%); }
+    .win-line.row-1 { width: 90%; height: 3px; top: 50%; left: 5%; transform: translateY(-50%); }
+    .win-line.row-2 { width: 90%; height: 3px; top: 83.33%; left: 5%; transform: translateY(-50%); }
+    /* Vertical lines */
+    .win-line.col-0 { height: 90%; width: 3px; left: 16.66%; top: 5%; transform: translateX(-50%); }
+    .win-line.col-1 { height: 90%; width: 3px; left: 50%; top: 5%; transform: translateX(-50%); }
+    .win-line.col-2 { height: 90%; width: 3px; left: 83.33%; top: 5%; transform: translateX(-50%); }
+    /* Diagonals */
+    .win-line.diag-0 { height: 3px; width: 127%; top: 50%; left: -13.5%; transform: rotate(45deg); }
+    .win-line.diag-1 { height: 3px; width: 127%; top: 50%; left: -13.5%; transform: rotate(-45deg); }
+
+    /* SIDE PANEL */
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: clamp(200px, 28vw, 300px);
+    }
+
+    .panel-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      backdrop-filter: blur(10px);
+    }
+
+    .panel-card label {
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    /* Turn indicator */
+    .turn-display {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .turn-symbol {
+      font-family: 'Orbitron', monospace;
+      font-size: 2.5rem;
+      font-weight: 900;
+      line-height: 1;
+      transition: color 0.4s ease, text-shadow 0.4s ease;
+    }
+    .turn-symbol.x { color: var(--x-color); text-shadow: var(--glow-x); }
+    .turn-symbol.o { color: var(--o-color); text-shadow: var(--glow-o); }
+
+    .turn-text {
+      font-size: 1.4rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      line-height: 1.2;
+    }
+    .turn-text small {
+      display: block;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.4);
+      font-weight: 400;
+    }
+
+    /* Status message */
+    .status-msg {
+      font-family: 'Orbitron', monospace;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      min-height: 28px;
+      text-align: center;
+      transition: all 0.4s ease;
+    }
+    .status-msg.win-x { color: var(--x-color); text-shadow: var(--glow-x); animation: statusPop 0.5s ease; }
+    .status-msg.win-o { color: var(--o-color); text-shadow: var(--glow-o); animation: statusPop 0.5s ease; }
+    .status-msg.draw  { color: rgba(255,255,255,0.6); animation: statusPop 0.5s ease; }
+
+    /* Score */
+    .score-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+    .score-player {
+      text-align: center;
+    }
+    .score-player .name {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 4px;
+    }
+    .score-player .val {
+      font-family: 'Orbitron', monospace;
+      font-size: 2rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .score-player.px .val { color: var(--x-color); text-shadow: 0 0 20px var(--x-color); }
+    .score-player.po .val { color: var(--o-color); text-shadow: 0 0 20px var(--o-color); }
+    .score-divider {
+      font-size: 1.5rem;
+      color: rgba(255,255,255,0.15);
+      font-weight: 300;
+    }
+
+    /* Buttons */
+    .btn-reset {
+      width: 100%;
+      padding: 14px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      background: transparent;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-reset::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, var(--x-color), var(--o-color));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .btn-reset:hover::before { opacity: 0.15; }
+    .btn-reset:hover {
+      border-color: rgba(255,255,255,0.5);
+      box-shadow: 0 0 20px rgba(255,255,255,0.1);
+      transform: translateY(-1px);
+    }
+    .btn-reset:active { transform: translateY(0); }
+    .btn-reset span { position: relative; z-index: 1; }
+
+    /* GIF celebration */
+    .celebrate-box {
+      text-align: center;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.8s ease;
+    }
+    .celebrate-box.show { max-height: 200px; }
+    .celebrate-box img {
+      width: 100%;
+      max-width: 180px;
+      border-radius: 10px;
+      opacity: 0;
+      transform: scale(0.8);
+      transition: opacity 0.5s ease 0.3s, transform 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.3s;
+    }
+    .celebrate-box.show img { opacity: 1; transform: scale(1); }
+
+    /* Particles canvas */
+    #particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* ANIMATIONS */
+    @keyframes fadeSlideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.97); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.3); }
+    }
+    @keyframes winPulse {
+      0%   { background: rgba(255,255,255,0); }
+      50%  { background: rgba(255,255,255,0.12); }
+      100% { background: rgba(255,255,255,0.06); }
+    }
+    @keyframes statusPop {
+      0%   { transform: scale(0.8); opacity: 0; }
+      60%  { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    /* DRAW SHAKE */
+    .board.shake {
+      animation: shake 0.5s ease;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-6px); }
+      80% { transform: translateX(6px); }
+    }
+
+    footer {
+      position: relative; z-index: 10;
+      padding: 24px;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.2);
+    }
+
+    @media (max-width: 640px) {
+      .game-area { flex-direction: column; gap: 28px; }
+      .side-panel { width: 100%; max-width: 420px; display: grid; grid-template-columns: 1fr 1fr; }
+      .celebrate-box, .side-panel > :last-child { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="particles"></canvas>
+
+<nav>
+  <div class="nav-logo">TIC · TAC · TOE</div>
+  <div class="nav-score">
+    DRAWS &nbsp;<span id="nav-draws">0</span>
+  </div>
+</nav>
+
+<main>
+  <div class="title-block">
+    <h1>PLAY ZONE</h1>
+    <div class="title-dots">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+
+  <div class="game-area">
+
+    <!-- BOARD -->
+    <div class="board-wrapper">
+      <div class="board-corner-tr"></div>
+      <div class="board-corner-bl"></div>
+
+      <div class="board" id="board">
+        <!-- Win lines (one per possible win pattern) -->
+        <div class="win-line row-0" id="wl-row0"></div>
+        <div class="win-line row-1" id="wl-row1"></div>
+        <div class="win-line row-2" id="wl-row2"></div>
+        <div class="win-line col-0" id="wl-col0"></div>
+        <div class="win-line col-1" id="wl-col1"></div>
+        <div class="win-line col-2" id="wl-col2"></div>
+        <div class="win-line diag-0" id="wl-diag0"></div>
+        <div class="win-line diag-1" id="wl-diag1"></div>
+
+        <!-- 9 cells -->
+        <div class="cell" data-index="0" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="1" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="2" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="3" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="4" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="5" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="6" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="7" data-hover="?"><span class="mark"></span></div>
+        <div class="cell" data-index="8" data-hover="?"><span class="mark"></span></div>
+      </div>
+    </div>
+
+    <!-- SIDE PANEL -->
+    <div class="side-panel">
+
+      <!-- Turn card -->
+      <div class="panel-card">
+        <label>Current Turn</label>
+        <div class="turn-display">
+          <div class="turn-symbol x" id="turn-symbol">X</div>
+          <div class="turn-text">
+            <span id="turn-name">Player X</span>
+            <small>MAKE YOUR MOVE</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div class="panel-card" style="text-align:center;">
+        <label>Status</label>
+        <div class="status-msg" id="status">GAME IN PROGRESS</div>
+      </div>
+
+      <!-- Score -->
+      <div class="panel-card">
+        <label>Score</label>
+        <div class="score-row">
+          <div class="score-player px">
+            <div class="name">PLAYER X</div>
+            <div class="val" id="score-x">0</div>
+          </div>
+          <div class="score-divider">|</div>
+          <div class="score-player po">
+            <div class="name">PLAYER O</div>
+            <div class="val" id="score-o">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Celebrate gif -->
+      <div class="celebrate-box" id="celebrate">
+        <img src="excited.gif" alt="Celebration!" />
+      </div>
+
+      <!-- Reset -->
+      <button class="btn-reset" id="btn-reset">
+        <span>↺ &nbsp; NEW ROUND</span>
+      </button>
+
+    </div>
+  </div>
+</main>
+
+<footer>© TIC · TAC · TOE · DELUXE EDITION</footer>
+
+<audio id="snd-move" src="ting.mp3" preload="auto"></audio>
+<audio id="snd-win"  src="gameover.mp3" preload="auto"></audio>
+<audio id="snd-bg"  src="music.mp3" preload="auto" loop></audio>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────
+let board = Array(9).fill('');
+let turn = 'X';
+let gameOver = false;
+let scores = { X: 0, O: 0, draws: 0 };
+let musicStarted = false;
+
+const WINS = [
+  [0,1,2], [3,4,5], [6,7,8],  // rows
+  [0,3,6], [1,4,7], [2,5,8],  // cols
+  [0,4,8], [2,4,6]            // diags
+];
+
+const WIN_LINE_IDS = [
+  'wl-row0','wl-row1','wl-row2',
+  'wl-col0','wl-col1','wl-col2',
+  'wl-diag0','wl-diag1'
+];
+
+// ─── DOM ─────────────────────────────────────────────────────────────
+const cells       = document.querySelectorAll('.cell');
+const statusEl    = document.getElementById('status');
+const turnSym     = document.getElementById('turn-symbol');
+const turnName    = document.getElementById('turn-name');
+const scoreX      = document.getElementById('score-x');
+const scoreO      = document.getElementById('score-o');
+const navDraws    = document.getElementById('nav-draws');
+const celebrate   = document.getElementById('celebrate');
+const boardEl     = document.getElementById('board');
+const sndMove     = document.getElementById('snd-move');
+const sndWin      = document.getElementById('snd-win');
+const sndBg       = document.getElementById('snd-bg');
+
+// ─── Init hover hints ────────────────────────────────────────────────
+function updateHints() {
+  cells.forEach(c => { c.dataset.hover = turn; });
+}
+
+// ─── Click handler ────────────────────────────────────────────────────
+cells.forEach(cell => {
+  cell.addEventListener('click', () => {
+    if (!musicStarted) { sndBg.volume = 0.3; sndBg.play().catch(()=>{}); musicStarted = true; }
+    const i = +cell.dataset.index;
+    if (board[i] || gameOver) return;
+
+    board[i] = turn;
+    const mark = cell.querySelector('.mark');
+    mark.textContent = turn;
+    mark.className = `mark ${turn.toLowerCase()} show`;
+    cell.classList.add('taken');
+    cell.dataset.hover = '';
+
+    sndMove.currentTime = 0;
+    sndMove.play().catch(()=>{});
+
+    spawnParticle(cell, turn);
+
+    const result = checkWin();
+    if (result) {
+      handleWin(result);
+    } else if (board.every(v => v)) {
+      handleDraw();
+    } else {
+      turn = turn === 'X' ? 'O' : 'X';
+      updateTurnUI();
+      updateHints();
+    }
+  });
+});
+
+// ─── Check win ────────────────────────────────────────────────────────
+function checkWin() {
+  for (let i = 0; i < WINS.length; i++) {
+    const [a,b,c] = WINS[i];
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return { winner: board[a], combo: [a,b,c], lineId: WIN_LINE_IDS[i] };
+    }
+  }
+  return null;
+}
+
+// ─── Handle win ───────────────────────────────────────────────────────
+function handleWin({ winner, combo, lineId }) {
+  gameOver = true;
+  scores[winner]++;
+  updateScoreUI();
+
+  combo.forEach(i => cells[i].classList.add('winner'));
+  document.getElementById(lineId).classList.add('show');
+
+  statusEl.textContent = `PLAYER ${winner} WINS!`;
+  statusEl.className = `status-msg win-${winner.toLowerCase()}`;
+
+  celebrate.classList.add('show');
+
+  sndWin.currentTime = 0;
+  sndWin.play().catch(()=>{});
+
+  burstParticles(winner);
+  turnSym.textContent = winner;
+  turnSym.className = `turn-symbol ${winner.toLowerCase()}`;
+  turnName.textContent = `Player ${winner} Wins! 🏆`;
+}
+
+// ─── Handle draw ──────────────────────────────────────────────────────
+function handleDraw() {
+  gameOver = true;
+  scores.draws++;
+  navDraws.textContent = scores.draws;
+
+  statusEl.textContent = 'DRAW!';
+  statusEl.className = 'status-msg draw';
+  boardEl.classList.add('shake');
+  setTimeout(() => boardEl.classList.remove('shake'), 600);
+  turnName.textContent = 'It\'s a Draw!';
+}
+
+// ─── Update turn UI ───────────────────────────────────────────────────
+function updateTurnUI() {
+  turnSym.textContent = turn;
+  turnSym.className = `turn-symbol ${turn.toLowerCase()}`;
+  turnName.textContent = `Player ${turn}`;
+}
+
+// ─── Update score UI ──────────────────────────────────────────────────
+function updateScoreUI() {
+  scoreX.textContent = scores.X;
+  scoreO.textContent = scores.O;
+  navDraws.textContent = scores.draws;
+}
+
+// ─── Reset ────────────────────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', resetGame);
+
+function resetGame() {
+  board = Array(9).fill('');
+  gameOver = false;
+  turn = 'X';
+
+  cells.forEach(cell => {
+    cell.classList.remove('taken','winner');
+    const mark = cell.querySelector('.mark');
+    mark.textContent = '';
+    mark.className = 'mark';
+    cell.dataset.hover = '?';
+  });
+
+  document.querySelectorAll('.win-line').forEach(l => l.classList.remove('show'));
+  celebrate.classList.remove('show');
+
+  statusEl.textContent = 'GAME IN PROGRESS';
+  statusEl.className = 'status-msg';
+
+  updateTurnUI();
+  updateHints();
+}
+
+// ─── Particle System ─────────────────────────────────────────────────
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+let particles = [];
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+function spawnParticle(cellEl, player) {
+  const rect = cellEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const color = player === 'X' ? '#00f5ff' : '#ff3cac';
+
+  for (let i = 0; i < 6; i++) {
+    particles.push({
+      x: cx, y: cy,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.5) * 5 - 2,
+      size: Math.random() * 4 + 2,
+      color, alpha: 1,
+      decay: Math.random() * 0.02 + 0.02
+    });
+  }
+}
+
+function burstParticles(player) {
+  const color = player === 'X' ? '#00f5ff' : '#ff3cac';
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  for (let i = 0; i < 80; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 10 + 3;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      size: Math.random() * 5 + 2,
+      color, alpha: 1,
+      decay: Math.random() * 0.01 + 0.01
+    });
+  }
+}
+
+function animateParticles() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles = particles.filter(p => p.alpha > 0);
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1;
+    p.alpha -= p.decay;
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  requestAnimationFrame(animateParticles);
+}
+animateParticles();
+
+// ─── Init ────────────────────────────────────────────────────────────
+updateHints();
+</script>
+</body>
+</html>
